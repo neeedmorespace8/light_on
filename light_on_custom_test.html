@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>點燈遊戲 (Lights On)</title>
+    <style>
+        /* --- 整體頁面樣式 --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+        
+        #app-container {
+            display: flex;
+            gap: 40px;
+            align-items: flex-start;
+            background-color: #ffffff;
+            padding: 30px 50px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+
+        #game-section {
+            text-align: center;
+        }
+
+        #sidebar {
+            width: 250px; /* 加寬以容納左右兩個面板 */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        h1 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #1a2c4e;
+            font-size: 2em;
+        }
+        
+        h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            text-align: center;
+        }
+
+        /* --- 遊戲棋盤 --- */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            width: 240px; 
+        }
+
+        /* --- 燈的樣式 --- */
+        .light {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .light:hover {
+            border-color: #007bff;
+        }
+
+        .light.off {
+            background-color: #4b5563;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .light.on {
+            background-color: #facc15;
+            box-shadow: 0 0 15px #facc15, 0 0 20px rgba(250, 204, 21, 0.5);
+            color: rgba(0, 0, 0, 0.6);
+        }
+        
+        /* --- 控制項 --- */
+        #controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        #controls .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #controls label {
+            font-weight: 500;
+        }
+
+        select, button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        button#solution-button {
+            background-color: #28a745;
+        }
+        
+        button:hover, select:hover {
+            background-color: #0056b3;
+        }
+        
+        button#solution-button:hover {
+            background-color: #218838;
+        }
+
+        #status {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #28a745;
+            height: 30px;
+            text-align: center;
+        }
+        
+        /* --- 新增的並排面板容器 --- */
+        #summary-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        .summary-panel {
+            flex: 1; /* 讓兩個面板平分空間 */
+        }
+        
+        /* --- 點擊總結 & 解答 面板樣式 --- */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, auto); /* 3個一排 */
+            row-gap: 5px;
+            column-gap: 8px;
+            justify-content: center;
+            padding: 10px;            
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            /* height: 130px; */
+            width: 95px;
+        }
+        
+        .summary-num {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 18px;
+            padding: 4px;
+            color: #ccc; /* 預設 "暗" 狀態 */
+            transition: all 0.2s ease;
+            text-align: center;
+            border-radius: 4px;
+        }
+        
+        .summary-num.active {
+            color: #007bff; /* "亮" 狀態 for 您的點擊 */
+            font-weight: bold;
+        }
+        
+        .summary-num.solution-active {
+            color: #28a745; /* "亮" 狀態 for 最佳解法 */
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="game-section">
+        <h1 id="game-title"></h1>
+        <div id="game-board"></div>
+    </div>
+    
+    <div id="sidebar">
+        <div id="controls">
+            <div class="control-group">
+                <label for="grid-size-selector">棋盤大小：</label>
+                <select id="grid-size-selector">
+                    <option value="4x3" selected>4 x 3</option>
+                    <option value="5x3">5 x 3</option>
+                </select>
+            </div>
+            <div class="control-group">
+                 <button id="reset-button">重新開始</button>
+                 <button id="solution-button">顯示解答</button>
+            </div>
+        </div>
+
+        <div id="summary-container">
+            <div class="summary-panel">
+                <h3>您的點擊</h3>
+                <div id="press-summary" class="summary-grid"></div>
+            </div>
+            <div class="summary-panel">
+                <h3>最佳解法</h3>
+                <div id="solution-display" class="summary-grid"></div>
+            </div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM 元素 ---
+        const boardElement = document.getElementById('game-board');
+        const resetButton = document.getElementById('reset-button');
+        const statusElement = document.getElementById('status');
+        const sizeSelector = document.getElementById('grid-size-selector');
+        const gameTitle = document.getElementById('game-title');
+        const pressSummaryElement = document.getElementById('press-summary');
+        const solutionButton = document.getElementById('solution-button');
+        const solutionDisplayElement = document.getElementById('solution-display');
+        
+        // --- 遊戲狀態變數 ---
+        let ROWS, COLS, TOTAL_LIGHTS;
+        let lightStates = []; 
+        let pressStates = []; 
+
+        // --- 預存的最佳解法 (使用 0-based 索引) ---
+        const solutions = {
+            '4x3': [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12],
+            '5x3': [3, 4, 5, 6, 8, 9, 11, 12, 13, 14]
+        };
+
+        // --- 核心遊戲邏輯 ---
+
+        function initializeGame() {
+            const selectedSize = sizeSelector.value.split('x');
+            ROWS = parseInt(selectedSize[0], 10);
+            COLS = parseInt(selectedSize[1], 10);
+            TOTAL_LIGHTS = ROWS * COLS;
+
+            gameTitle.textContent = `${ROWS}x${COLS} 點燈遊戲`;
+            
+            boardElement.innerHTML = '';
+            pressSummaryElement.innerHTML = '';
+            solutionDisplayElement.innerHTML = ''; // 清空解答區
+            statusElement.textContent = '';
+            lightStates = [];
+            pressStates = [];
+            
+            for (let i = 0; i < TOTAL_LIGHTS; i++) {
+                lightStates.push(false); 
+                pressStates.push(false);
+
+                const light = document.createElement('div');
+                light.classList.add('light', 'off');
+                light.dataset.index = i;
+                light.textContent = String(i + 1).padStart(2, '0');
+                boardElement.appendChild(light);
+                
+                const summaryNum = document.createElement('span');
+                summaryNum.classList.add('summary-num');
+                summaryNum.dataset.index = i;
+                summaryNum.textContent = String(i + 1).padStart(2, '0');
+                pressSummaryElement.appendChild(summaryNum);
+
+                const solutionNumPlaceholder = document.createElement('span');
+                solutionNumPlaceholder.classList.add('summary-num');
+                solutionNumPlaceholder.textContent = String(i + 1).padStart(2, '0');
+                solutionDisplayElement.appendChild(solutionNumPlaceholder);
+            }
+        }
+
+        function handleLightClick(index) {
+            pressStates[index] = !pressStates[index];
+            renderPressSummary();
+
+            const row = Math.floor(index / COLS);
+            const col = index % COLS;
+
+            const toggleLightState = (idx) => {
+                if (idx >= 0 && idx < TOTAL_LIGHTS) lightStates[idx] = !lightStates[idx];
+            };
+
+            toggleLightState(index);
+            if (row > 0) toggleLightState(index - COLS);
+            if (row < ROWS - 1) toggleLightState(index + COLS);
+            if (col > 0) toggleLightState(index - 1);
+            if (col < COLS - 1) toggleLightState(index + 1);
+
+            renderBoard();
+            checkWinCondition();
+        }
+        
+        function renderPressSummary() {
+            const summaryNums = pressSummaryElement.children;
+            for (let i = 0; i < TOTAL_LIGHTS; i++) {
+                summaryNums[i].classList.toggle('active', pressStates[i]);
+            }
+        }
+
+        function renderBoard() {
+            const lights = boardElement.children;
+            for (let i = 0; i < TOTAL_LIGHTS; i++) {
+                lights[i].classList.toggle('on', lightStates[i]);
+                lights[i].classList.toggle('off', !lightStates[i]);
+            }
+        }
+
+        function checkWinCondition() {
+            const isWin = lightStates.every(state => state === true);
+            if (isWin) {
+                statusElement.textContent = '恭喜！挑戰成功！';
+            }
+        }
+
+        function showSolution() {
+            solutionDisplayElement.innerHTML = ''; // 清空舊的解答
+            const key = `${ROWS}x${COLS}`;
+            const solutionArray = solutions[key];
+
+            if (solutionArray) {
+                for(let i=0; i < TOTAL_LIGHTS; i++) {
+                    const solutionNum = document.createElement('span');
+                    solutionNum.classList.add('summary-num'); // 共用樣式
+                    solutionNum.textContent = String(i + 1).padStart(2, '0');
+                    if (solutionArray.includes(i)) {
+                        solutionNum.classList.add('solution-active'); // 套用解答的點亮樣式
+                    }
+                    solutionDisplayElement.appendChild(solutionNum);
+                }
+            } else {
+                solutionDisplayElement.textContent = '暫無此大小的解法。';
+            }
+        }
+
+        // --- 事件監聽器 ---
+
+        boardElement.addEventListener('click', (event) => {
+            if (event.target.classList.contains('light')) {
+                if (statusElement.textContent) return;
+                
+                const index = parseInt(event.target.dataset.index, 10);
+                handleLightClick(index);
+            }
+        });
+        
+        resetButton.addEventListener('click', initializeGame);
+        sizeSelector.addEventListener('change', initializeGame);
+        solutionButton.addEventListener('click', showSolution);
+
+        // --- 首次載入遊戲 ---
+        initializeGame();
+    });
+</script>
+
+</body>
+</html>

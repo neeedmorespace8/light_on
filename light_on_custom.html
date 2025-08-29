@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>點燈遊戲 (Lights On)</title>
+    <style>
+        /* --- 整體頁面樣式 --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none; /* 防止文字被選取 */
+        }
+
+        /* --- 遊戲主容器 --- */
+        #game-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 300px; /* 稍微加寬以容納新元件 */
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #1a2c4e;
+        }
+
+        /* --- 遊戲棋盤 --- */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            width: 240px; /* (70px * 3) + (10px * 2) */
+            margin: 20px auto;
+        }
+
+        /* --- 燈的樣式 --- */
+        .light {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .light:hover {
+            border-color: #007bff;
+        }
+
+        /* --- 燈的 "暗" 狀態 --- */
+        .light.off {
+            background-color: #4b5563; /* 深灰色 */
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* --- 燈的 "亮" 狀態 --- */
+        .light.on {
+            background-color: #facc15; /* 黃色 */
+            box-shadow: 0 0 15px #facc15, 0 0 20px rgba(250, 204, 21, 0.5);
+        }
+        
+        /* --- 控制按鈕和狀態訊息 --- */
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px; /* 在元件之間增加間距 */
+        }
+
+        #controls label {
+            font-weight: 500;
+        }
+
+        select, button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        select {
+             padding: 10px;
+        }
+
+        button:hover, select:hover {
+            background-color: #0056b3;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #28a745;
+            height: 30px; /* 預留空間防止跳動 */
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h1 id="game-title"></h1>
+    <div id="game-board"></div>
+    <div id="controls">
+        <div>
+            <label for="grid-size-selector">大小：</label>
+            <select id="grid-size-selector">
+                <option value="4x3" selected>4 x 3</option>
+                <option value="5x3">5 x 3</option>
+            </select>
+        </div>
+        <button id="reset-button">重新開始</button>
+    </div>
+    <div id="status"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM 元素 ---
+        const boardElement = document.getElementById('game-board');
+        const resetButton = document.getElementById('reset-button');
+        const statusElement = document.getElementById('status');
+        const sizeSelector = document.getElementById('grid-size-selector');
+        const gameTitle = document.getElementById('game-title');
+        
+        // --- 遊戲狀態變數 ---
+        let ROWS;
+        let COLS;
+        let TOTAL_LIGHTS;
+        let lightStates = []; // 儲存所有燈的狀態 (true=亮, false=暗)
+
+        // --- 核心遊戲邏輯 ---
+
+        /**
+         * 初始化或重設遊戲
+         */
+        function initializeGame() {
+            // 1. 根據下拉選單設定棋盤大小
+            const selectedSize = sizeSelector.value.split('x'); // "4x3" -> ["4", "3"]
+            ROWS = parseInt(selectedSize[0], 10);
+            COLS = parseInt(selectedSize[1], 10);
+            TOTAL_LIGHTS = ROWS * COLS;
+
+            // 2. 更新標題
+            gameTitle.textContent = `${ROWS}x${COLS} 點燈遊戲`;
+            
+            // 3. 清空棋盤和狀態
+            boardElement.innerHTML = '';
+            statusElement.textContent = '';
+            lightStates = [];
+            
+            // 4. 根據新的大小建立所有燈，並設定為 "暗"
+            for (let i = 0; i < TOTAL_LIGHTS; i++) {
+                lightStates.push(false); // false 代表 "暗"
+
+                const light = document.createElement('div');
+                light.classList.add('light', 'off');
+                light.dataset.index = i; // 儲存索引值以便點擊時識別
+                boardElement.appendChild(light);
+            }
+        }
+
+        /**
+         * 根據索引值切換燈的狀態 (亮/暗)
+         * @param {number} index - 要切換的燈的索引
+         */
+        function toggleLightState(index) {
+            if (index >= 0 && index < TOTAL_LIGHTS) {
+                lightStates[index] = !lightStates[index];
+            }
+        }
+        
+        /**
+         * 處理點擊事件
+         * @param {number} index - 被點擊的燈的索引
+         */
+        function handleLightClick(index) {
+            const row = Math.floor(index / COLS);
+            const col = index % COLS;
+
+            // 1. 切換自己
+            toggleLightState(index);
+            // 2. 切換上方
+            if (row > 0) toggleLightState(index - COLS);
+            // 3. 切換下方
+            if (row < ROWS - 1) toggleLightState(index + COLS);
+            // 4. 切換左方
+            if (col > 0) toggleLightState(index - 1);
+            // 5. 切換右方
+            if (col < COLS - 1) toggleLightState(index + 1);
+
+            // 6. 更新畫面、檢查是否勝利
+            renderBoard();
+            checkWinCondition();
+        }
+
+        /**
+         * 根據 lightStates 陣列的狀態更新網頁畫面
+         */
+        function renderBoard() {
+            const lights = boardElement.children;
+            for (let i = 0; i < TOTAL_LIGHTS; i++) {
+                if (lightStates[i]) {
+                    lights[i].classList.remove('off');
+                    lights[i].classList.add('on');
+                } else {
+                    lights[i].classList.remove('on');
+                    lights[i].classList.add('off');
+                }
+            }
+        }
+
+        /**
+         * 檢查是否所有燈都點亮
+         */
+        function checkWinCondition() {
+            // .every() 檢查陣列中是否 "每個" 元素都滿足條件
+            const isWin = lightStates.every(state => state === true);
+            if (isWin) {
+                statusElement.textContent = '恭喜！挑戰成功！';
+            }
+        }
+
+        // --- 事件監聽器 ---
+
+        boardElement.addEventListener('click', (event) => {
+            if (event.target.classList.contains('light')) {
+                if (statusElement.textContent) return;
+                
+                const index = parseInt(event.target.dataset.index, 10);
+                handleLightClick(index);
+            }
+        });
+        
+        // 當下拉選單或重設按鈕被點擊時，重新初始化遊戲
+        resetButton.addEventListener('click', initializeGame);
+        sizeSelector.addEventListener('change', initializeGame);
+
+        // --- 首次載入遊戲 ---
+        initializeGame();
+    });
+</script>
+
+</body>
+</html>
